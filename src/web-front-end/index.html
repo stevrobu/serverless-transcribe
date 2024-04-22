@@ -12,6 +12,10 @@
         padding: 0;
       }
 
+      .waiting {
+        cursor: wait !important;
+      }
+
       #upload_notification {
         color: #00753F;
         visibility: hidden;
@@ -91,6 +95,7 @@
         document.addEventListener("DOMContentLoaded", _ => {
           if (window.location.href.includes('etag=')) {
             document.getElementById('upload_notification').style.visibility = 'visible';
+            document.body.classList.remove('waiting');
           }
 
           const file_selector = document.getElementById('s3_file');
@@ -119,7 +124,7 @@
   <body>
     <h3 id=upload_notification>Upload Complete</h3>
     <!-- https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-HTTPPOSTForms.html -->
-    <form id=s3_upload method=post enctype=multipart/form-data action="https://__bucket_domain_name__/">
+    <form id=s3_upload method=post enctype=multipart/form-data  onsubmit="document.body.classList.add('waiting');" action="https://__bucket_domain_name__/">
       <input type=hidden name=Content-Type id=s3_object_content_type>
       <input type=hidden name=key id=s3_object_key>
       <input type=hidden name=policy id=s3_policy value="__s3_policy__">

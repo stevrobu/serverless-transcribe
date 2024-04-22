@@ -212,7 +212,7 @@ def lambda_handler(event, context):
                     "max_tokens_to_sample": 4096,
                     "top_p": 0.999,
                     "top_k": 250,
-                    "temperature": 0.8:
+                    "temperature": 0.8,
                     })
 
             model = "anthropic.claude-instant-v1"

@@ -8,6 +8,7 @@ s3_resource = boto3.resource('s3')
 s3 = boto3.client('s3')
 ses = boto3.client('ses')
 transcribe = boto3.client('transcribe')
+bedrock = boto3.client(service_name='bedrock-runtime', region_name='us-east-1')
 
 media_bucket_name = os.environ['MEDIA_BUCKET_NAME']
 
@@ -127,6 +128,20 @@ def send_email(to, subject, body):
         }
     )
 
+def split_string_into_chunks(input_string, chunk_size=50000):
+
+    # Splits an input string into chunks of specified size.
+
+    # Args:
+    #    input_string (str): The original string to be split.
+    #    chunk_size (int): The desired size of each chunk (default is 50,000 bytes).
+
+    #Returns:
+    #    list: A list of substrings, each with a maximum length of chunk_size.
+
+    return [input_string[i:i + chunk_size] for i in range(0, len(input_string), chunk_size)]
+
+
 
 def lambda_handler(event, context):
     transcription_job_name = event['detail']['TranscriptionJobName']
@@ -158,6 +173,7 @@ def lambda_handler(event, context):
         subject = f"Transcription failed for {media_uri}"
         body = f"Reason: {transcription_job['FailureReason']}"
         send_email(to, subject, body)
+
     elif transcription_job_status == 'COMPLETED':
         # If the job is complete, get the transcript and send it in an email
         print(f"Transcription job complete: {transcription_job_name}")
@@ -168,18 +184,64 @@ def lambda_handler(event, context):
 
         parsed_transcript = parse_transcript_data(transcript_data)
 
+        print(len(parsed_transcript))
+
+
+        # We need to chunk the transcript to 50K bytes, to keep under the prompt limits for this Claud model.
+
+        chunks = split_string_into_chunks(parsed_transcript)
+        overall_summary = ""
+
+        for chunk in chunks:
+
+            llm_start = "Human: Here is a recording of a meeting. Start of Transcript:"  + chunk
+
+            llm_end = """End of Transcript.
+            Provide a chronology of the meeting, with time windows and topics. For each topic, provide a summary from the perspective of the meeting organizer.
+            If possible, identify speakers by name.
+            Then list any action items and next steps.
+            Assistant:"""
+
+            concatenation = llm_start + llm_end
+
+            print("Processing 50K chunk")
+            print(len(concatenation))
+
+            prompt = json.dumps({
+                    "prompt": concatenation,
+                    "max_tokens_to_sample": 4096,
+                    "top_p": 0.999,
+                    "top_k": 250,
+                    "temperature": 0.8:
+                    })
+
+            model = "anthropic.claude-instant-v1"
+            #model = "anthropic.claude-v1"
+
+            response = bedrock.invoke_model(body=prompt, modelId=model)
+            print(response)
+            response_body = json.loads(response.get("body").read())
+
+            overall_summary += response_body.get("completion") + """
+            \n ========================== End of Segment (~ 35 minutes) ========================== \n
+            """
+
         body = ''.join([
             f"Original file: {s3_key_from_url(media_uri)}",
-            '\n\n',
-            'Below are a parsed and raw transcript of your audio.',
-            '\n\n==========================\n\n',
-            parsed_transcript,
-            '\n\n==========================\n\n',
-            transcript
+            '\n',
+            'Below is a summary of your recorded Chime meeting.',
+            ' Note: If your meetig is longet than (approx) 45 minutes, the output is processed in chunks'
+            '\n========================== First Meeting Segment ( ~35 minutes) ========================== \n',
+            overall_summary,
+            '\n==========================\n',
+            'Below is the transcript of your recorded Chime meeting. \n\n',
+            parsed_transcript
+#            chunk
         ])
 
         print(f"Sending notification to {notification_email}")
         send_email(notification_email, 'Transcript is complete', body)
+
     else:
         # TODO
         pass

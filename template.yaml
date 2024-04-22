@@ -525,6 +525,12 @@ Resources:
               Resource: !Sub ${MediaBucket.Arn}/*
               Sid: AllowMediaObjectRead
           Version: "2012-10-17"
+        - Statement:
+            - Action: bedrock:invoke
+              Effect: Allow
+              Resource: "*"
+              Sid: BedrockInvoke
+          Version: "2012-10-17"
       Runtime: python3.9
       Tags:
         Project: serverless-transcribe

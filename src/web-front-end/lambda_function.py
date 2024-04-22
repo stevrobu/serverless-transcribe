@@ -52,7 +52,11 @@ def s3_post_policy(signing_time, ttl=60):
             ["starts-with", "$x-amz-meta-channelidentification", ""],
             ["starts-with", "$x-amz-meta-maxspeakerlabels", ""],
             ["starts-with", "$key", "audio/"],
-            ["starts-with", "$Content-Type", "audio/"]
+            # See link below for why we shouldn't be checking the Content-Type. We are already resticting the file types for the input.
+            # https://stackoverflow.com/questions/22073237/allowing-multiple-content-types-in-http-post-amazon-s3-upload-policy-document
+            # ["starts-with", "$Content-Type", "video/"],
+            # ["starts-with", "$Content-Type", "audio/"]
+            ["starts-with", "$Content-Type", ""]
         ]
     }
 
